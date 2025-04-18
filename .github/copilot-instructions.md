@@ -8,17 +8,22 @@ Secret Plan is a zero‑knowledge password manager delivered as a single code�
 
 ---
 
-### 2 · Core Use‑Cases
+### 2 · Core Use‑Cases & Implementation Status
 
-1. **Initial On‑boarding** – create master password → derive key → open empty vault.  
-2. **Unlock Vault** – enter master password / Touch ID / Face ID; decrypt local store.  
-3. **Credential CRUD** – add · edit · delete secrets (site / user / password / notes).  
-4. **Password Generator** – build strong password given length/charset rules.  
-5. **Search & Filter** – live filtering by site, tag, strength, or breach status.  
-6. **Auto‑Fill** – Tauri plug‑ins adapt to iOS Password AutoFill, Android Autofill, and desktop browser injections.  
-7. **Leak Monitor** – hashed lookup in HIBP; flag compromised logins.  
-8. **Sync & Backup** – end‑to‑end‑encrypted vault replication plus offline AES‑GCM export/import.  
-9. **Security Analytics** – strength meter, expiry reminders, full audit trail.
+| Use-Case            | Status      | Notes                                                  |
+| ------------------- | ----------- | ------------------------------------------------------ |
+| Initial On‑boarding | Implemented | Master password, key derivation, DB init               |
+| Unlock Vault        | Implemented | Password unlock; biometrics planned                    |
+| Credential CRUD     | Implemented | Add/edit/delete secrets                                |
+| Password Generator  | Partial     | Function exists; builder pattern planned               |
+| Search & Filter     | Implemented | Live filtering by site/tag/strength/breach             |
+| Auto‑Fill           | Planned     | No OS/browser integration yet                          |
+| Leak Monitor (HIBP) | Partial     | HIBP check implemented; no background/flag UI          |
+| Sync & Backup       | Planned     | No cloud sync or envelope encryption yet               |
+| Security Analytics  | Partial     | Strength meter; no expiry reminders or reuse detection |
+| Audit Log           | Partial     | Audit log exists; not all actions consistently logged  |
+| Undo/Redo           | Planned     | Command pattern not implemented                        |
+| Multi-factor Unlock | Planned     | Biometrics/multi-factor not implemented                |
 
 ---
 
@@ -27,7 +32,7 @@ Secret Plan is a zero‑knowledge password manager delivered as a single code�
 ```mermaid
 flowchart TD
     A[Start App] --> B{Vault exists?}
-    B -- No --> C[On‑boarding\n• create master PW\n• derive key\n• init DB]
+    B -- No --> C["On‑boarding<br/>• create master PW<br/>• derive key<br/>• init DB"]
     B -- Yes --> D[Unlock screen]
     D -->|PW/Bio| E[Decrypt vault]
     E --> F[Dashboard]
@@ -46,21 +51,23 @@ flowchart TD
 
 ```mermaid
 graph LR
-    subgraph Frontend (Svelte 5 + Tailwind 4)
+    subgraph "Frontend (Svelte 5 + Tailwind 4)"
         UI[Reactive UI] -->|IPC| IPC[(Tauri API)]
     end
-    subgraph Core (Tauri Rust)
+    subgraph "Core (Tauri Rust)"
         IPC --> VaultMgr[Vault Manager<br/>AES‑GCM · Argon2]
         VaultMgr --> DB[(Encrypted SQLite)]
-        VaultMgr --> Sync[Sync Service<br/>(Cloud R2/S3/WebDAV)]
-        VaultMgr --> OSInt[OS Integration<br/>Autofill · Biometrics]
+        VaultMgr --> Sync["Sync Service<br/>(Cloud R2/S3/WebDAV)"]:::planned
+        VaultMgr --> OSInt["OS Integration<br/>Autofill · Biometrics"]:::planned
         VaultMgr --> Breach[HIBP Client]
         Breach -->|k‑Anon SHA‑1| API[(HIBP API)]
     end
-    subgraph Cloud (optional)
-        Sync <--> Storage[(Object Store)]
+    subgraph "Cloud (optional)"
+        Sync <--> Storage[(Object Store)]:::planned
     end
 ```
+
+*Legend: `:::planned` = planned/not yet implemented*
 
 *Reasons*:
 
@@ -72,13 +79,13 @@ graph LR
 
 ### 5 · Data Storage Design
 
-| Table         | Columns                                                                                                                                                                                | Notes                                                         |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `meta`        | `id TEXT PK`, `value BLOB`                                                                                                                                                             | Encrypted app settings (argon params, theme, etc.)            |
-| `vault_items` | `uuid TEXT PK`, `site TEXT`, `username TEXT`, `secret BLOB`, `tags TEXT`, `created_at INTEGER`, `updated_at INTEGER`, `expires_at INTEGER`, `strength INTEGER`, `breach_state INTEGER` | `secret` contains AES‑GCM‑sealed JSON {password, notes, totp} |
-| `audit_log`   | `id INTEGER PK`, `timestamp INTEGER`, `action TEXT`, `item_uuid TEXT`                                                                                                                  | Immutable log for security review                             |
+| Table         | Columns                                                                                                                                                                                    | Notes                                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `meta`        | `key TEXT PK`, `value BLOB NOT NULL`, `nonce BLOB`                                                                                                                                         | Stores encrypted app settings (argon params, theme, etc.)    |
+| `vault_items` | `uuid TEXT PK`, `site TEXT`, `username TEXT`, `secret_enc TEXT`, `tags TEXT`, `created_at INTEGER`, `updated_at INTEGER`, `expires_at INTEGER`, `strength INTEGER`, `breach_state INTEGER` | `secret_enc` is base64-encoded JSON container (nonce+cipher) |
+| `audit_log`   | `id INTEGER PRIMARY KEY AUTOINCREMENT`, `timestamp INTEGER`, `action TEXT`, `item_uuid TEXT`                                                                                               | Immutable log for security review                            |
 
-* All tables live in **SQLite** wrapped by [sqlcipher]/`rust‑sqlite` with page‑level AES‑GCM; the entire file is again envelope‑encrypted before sync.  
+* All tables live in **SQLite** wrapped by [sqlcipher]/`rust‑sqlite` with page‑level AES‑GCM; the entire file is again envelope‑encrypted before sync (**planned**).  
 * Row‑level random IVs prevent pattern leakage.  
 
 ---
@@ -101,49 +108,78 @@ classDiagram
     class VaultManager {
         +unlock(masterPw)
         +lock()
-        +addItem(Credential)
-        +updateItem(...)
-        +deleteItem(id)
-        +listItems(filter)
-        +sync()
+        +add_credential(site, username, secret)
+        +update_credential(...)
+        +delete_credential(uuid): String
+        +get_credential(uuid)
+        +list_credentials(filter)
+        +sync() // planned
+        -credential_repo: CredentialRepository
+        -settings_repo: SettingsRepository
+        -audit_logger: AuditLogger
+        -strength_calculator: PasswordStrengthCalculator
     }
     class Credential {
         +uuid
         +site
         +username
-        +secretEnc
+        +secret_enc
         +tags
         +strength
-        +expiresAt
+        +expires_at
     }
     class CryptoService {
-        +deriveKey(masterPw):Key
+        +unlock(masterPw)
+        +lock()
         +encrypt(plain, key, aad)
         +decrypt(cipher, key, aad)
     }
     class HibpService {
-        +checkSha1(hash):LeakStatus
+        +check_password(hash):BreachState
     }
-    class SyncService {
+    class SyncService { // planned
         +push(localDiff)
         +pull()
     }
+    class PasswordGenerator { // planned
+        +with_length(len)
+        +with_charset(...)
+        +build()
+    }
     VaultManager o-- "1..*" Credential
+    VaultManager --> "trait" CredentialRepository
+    VaultManager --> "trait" SettingsRepository
+    VaultManager --> "trait" AuditLogger
+    VaultManager --> "trait" PasswordStrengthCalculator
     VaultManager --> CryptoService
     VaultManager --> HibpService
-    VaultManager --> SyncService
+    VaultManager --> SyncService : planned
 ```
 
 ---
 
-### 8 · Applied Design Patterns
+### 8 · Applied Design Patterns & Implementation Status
 
-| Concern                                | Pattern                                                 | Motive                                                    |
-| -------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------- |
-| **Single instance of decrypted vault** | **Singleton** (`VaultManager`)                          | Avoid multiple in‑memory plaintext copies.                |
-| **Reactive UI on data change**         | **Observer** (Svelte store subscribed to IPC events)    | Push‑based updates keep UI in sync.                       |
-| **Pluggable crypto / KDF options**     | **Strategy** (`CryptoService` picks Argon2id vs scrypt) | Future‑proof algorithm swaps.                             |
-| **Password generation rules**          | **Builder**                                             | Fluent API lets UI compose charset/length constraints.    |
-| **Auto‑fill OS bridges**               | **Adapter** (iOS vs Android vs Desktop)                 | Uniform vault API over heterogeneous autofill frameworks. |
-| **Undo for credential edits**          | **Command**                                             | Enqueues reversible operations recorded in audit log.     |
-| **Network/offline sync**               | **Repository**                                          | Local persistence stays isolated from sync transport.     |
+| Concern                                | Pattern                                                 | Motive                                                    | Status          |
+| -------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------- | --------------- |
+| **Single instance of decrypted vault** | **Singleton** (`VaultManager`)                          | Avoid multiple in‑memory plaintext copies.                | Implemented     |
+| **Reactive UI on data change**         | **Observer** (Svelte store subscribed to IPC events)    | Push‑based updates keep UI in sync.                       | Planned         |
+| **Pluggable crypto / KDF options**     | **Strategy** (`CryptoService` picks Argon2id vs scrypt) | Future‑proof algorithm swaps.                             | Partial         |
+| **Password generation rules**          | **Builder**                                             | Fluent API lets UI compose charset/length constraints.    | Planned         |
+| **Auto‑fill OS bridges**               | **Adapter** (iOS vs Android vs Desktop)                 | Uniform vault API over heterogeneous autofill frameworks. | Planned         |
+| **Undo for credential edits**          | **Command**                                             | Enqueues reversible operations recorded in audit log.     | Planned         |
+| **Network/offline sync**               | **Repository**                                          | Local persistence stays isolated from sync transport.     | Partial (local) |
+
+---
+
+### 9 · Known Gaps & TODOs
+
+- **SyncService, envelope encryption, and cloud backup**: Not yet implemented.
+- **Biometric/multi-factor unlock**: Not yet implemented.
+- **Password generator builder pattern**: Not yet implemented.
+- **Undo/redo (Command pattern)**: Not yet implemented.
+- **Audit log coverage**: Not all actions are consistently logged.
+- **Autofill/OS integration**: Not yet implemented.
+- **Security analytics (expiry, reuse, reminders)**: Not yet implemented.
+
+---
