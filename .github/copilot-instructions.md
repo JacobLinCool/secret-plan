@@ -183,3 +183,369 @@ classDiagram
 - **Security analytics (expiry, reuse, reminders)**: Not yet implemented.
 
 ---
+
+# Svelte 5 Runes & Patterns Reference
+
+Use these patterns and examples to steer toward Svelte 5 idioms and away from deprecated Svelte 4 APIs.
+
+## 1. Reactivity (Runes)
+
+| Rune                | Purpose                                   | Example                                        |
+| ------------------- | ----------------------------------------- | ---------------------------------------------- |
+| **$state**          | Reactive primitives & deep proxies        | `let count = $state(0)`                        |
+|                     |                                           | `let todos = $state([{…}])`                    |
+| **$state.raw**      | Immutable snapshot                        | `let cfg = $state.raw({a:1,b:2})`              |
+| **$state.snapshot** | Strip proxies for external libs           | `const snap = $state.snapshot(todos)`          |
+| **$derived(expr)**  | Auto‑updating read‑only                   | `const dbl = $derived(count * 2)`              |
+| **$derived.by(fn)** | Complex derived logic                     | `const sum = $derived.by(()=>arr.reduce(...))` |
+| **$effect(fn)**     | Side‑effects when dependencies change     | `$effect(()=> console.log(count))`             |
+| **$effect.pre(fn)** | Run before DOM updates (e.g. auto‑scroll) | `$effect.pre(()=>{/*…*/})`                     |
+
+```ts
+// deep reactive proxy
+let todos = $state<{ text: string; done: boolean }[]>([{ text: 'Learn Svelte', done: false }]);
+
+// immutable config
+let cfg = $state.raw({ baseUrl: 'https://api.example.com' });
+
+// snapshot for external lib
+function send(data) {
+	api.post('/save', $state.snapshot(todos));
+}
+
+// simple derived
+const remaining = $derived(todos.filter((t) => !t.done).length);
+
+// complex derived
+const stats = $derived.by(() => ({
+	total: todos.length,
+	done: todos.filter((t) => t.done).length
+}));
+
+// side‑effect + cleanup
+$effect(() => {
+	console.log(`You have ${remaining} tasks left`);
+	return () => console.clear();
+});
+
+// pre‑DOM update (auto‑scroll)
+let chatContainer = $state<HTMLElement>();
+let messages = $state<string[]>([]);
+$effect.pre(() => {
+	messages.length; // track length
+	if (chatContainer) {
+		tick().then(() => chatContainer.scrollTo(0, chatContainer.scrollHeight));
+	}
+});
+```
+
+## 2. Props & Binding
+
+- **$props()**
+  ```ts
+  let { foo, bar = 'x' } = $props(); // destructure + defaults
+  ```
+- **$bindable**
+  ```svelte
+  let {(value = $bindable())} = $props();
+  <input bind:value />
+  <!-- two‑way -->
+  ```
+- **Unique IDs**
+  ```ts
+  const uid = $props.id(); // stable per instance
+  ```
+
+```ts
+// destructure + defaults + bindable
+<script lang="ts">
+  interface Props { value?: string; disabled?: boolean }
+  let { value = $bindable(''), disabled = $bindable(false) }: Props = $props();
+</script>
+
+<input bind:value bind:disabled />
+```
+
+```ts
+// unique IDs
+const uid = $props.id();
+
+// pass callback prop
+let { onSave }: { onSave: (data: any) => void } = $props();
+<button onclick={() => onSave($state.snapshot(todos))}>Save</button>
+```
+
+## 3. Event Handling
+
+- **Inline handlers**
+  ```svelte
+  <button onclick={(e) => count++}>…</button>
+  ```
+- **Shorthand** (named `onclick`)
+  ```svelte
+  function onclick() {count++}
+  <button {onclick}>…</button>
+  ```
+- **Callback props** (no `createEventDispatcher`)
+  ```svelte
+  <!-- Child.svelte -->
+  let {onAction} = $props();
+  <button onclick={() => onAction(data)}>Do</button>
+  ```
+- **Modifiers** (manual wrappers)
+  ```ts
+  const once = (fn) => (e) => {
+  	fn(e);
+  	fn = null;
+  };
+  const preventDefault = (fn) => (e) => {
+  	e.preventDefault();
+  	fn(e);
+  };
+  ```
+- **Multiple handlers**
+  ```svelte
+  <button
+  	onclick={(e) => {
+  		a(e);
+  		b(e);
+  	}}>…</button
+  >
+  ```
+- **Spread + merge**
+  ```svelte
+  <button
+  	{...props}
+  	onclick={(e) => {
+  		local(e);
+  		props.onclick?.(e);
+  	}}
+  />
+  ```
+
+```svelte
+<script lang="ts">
+	let count = $state(0);
+	function onclick() {
+		count += 1;
+	} // shorthand
+	const preventOnce = once(preventDefault(() => alert('Clicked!')));
+</script>
+
+<button {onclick}>Clicked {count}</button>
+<button onclick={preventOnce}>Once & no default</button>
+```
+
+```svelte
+<!-- merge props + local -->
+<script lang="ts">
+	let props = $props<{ onclick?: (e: MouseEvent) => void }>();
+	function local(e: MouseEvent) {
+		console.log('local');
+	}
+</script>
+
+<button
+	{...props}
+	onclick={(e) => {
+		local(e);
+		props.onclick?.(e);
+	}}
+>
+	Combined
+</button>
+```
+
+## 4. Snippets (Slots Replacement)
+
+- **Define**
+  ```svelte
+  {#snippet item(d)}
+  	<li>{d}</li>
+  {/snippet}
+  ```
+- **Render**
+  ```svelte
+  {@render item(fruit)}
+  ```
+- **Pass to components**
+  ```svelte
+  <Table {header} {row} />
+  ```
+
+```svelte
+{#snippet header()}
+	<h1>{title}</h1>
+{/snippet}
+
+{#snippet row(item)}
+	<tr>
+		<td>{item.name}</td>
+		<td>{item.qty}</td>
+	</tr>
+{/snippet}
+
+<Table data={items} {header} {row} />
+```
+
+## 5. Advanced APIs
+
+- **$host()**
+  ```ts
+  $host().dispatchEvent(new CustomEvent('evt'));
+  ```
+- **$inspect**
+  ```ts
+  $inspect(count, todos);              // log changes
+  $inspect(count).with((t,v)=>…);      // custom
+  $inspect.trace();                    // inside $effect
+  ```
+
+```ts
+// dispatch from custom element
+<svelte:options customElement="x-chart" />
+<script lang="ts">
+  function update(data) {
+    $host().dispatchEvent(new CustomEvent('update', { detail: data }));
+  }
+</script>
+```
+
+```ts
+// inspect + trace
+let stateA = $state(0),
+	stateB = $state(0);
+$inspect(stateA, stateB).with((type, ...vals) => console.log(type, vals));
+$effect(() => {
+	$inspect.trace();
+	doWork();
+});
+```
+
+## 6. TypeScript Patterns
+
+- **Enable**: `<script lang="ts">`
+- **Typed props**
+  ```ts
+  interface Props {
+  	name: string;
+  }
+  let { name }: Props = $props();
+  ```
+- **Generic components**
+  ```svelte
+  <script lang="ts" generics="T">
+  	interface Props {
+  		items: T[];
+  		onSelect: (t: T) => void;
+  	}
+  	let { items, onSelect }: Props = $props();
+  </script>
+  ```
+- **Typed state**
+  ```ts
+  let count: number = $state(0);
+  ```
+
+```svelte
+<script lang="ts" generics="Item">
+	interface Props {
+		items: Item[];
+		renderItem: (item: Item) => any;
+		onSelect: (item: Item) => void;
+	}
+	let { items, renderItem, onSelect }: Props = $props();
+</script>
+
+<ul>
+	{#each items as it}
+		<li onclick={() => onSelect(it)}>{@render renderItem(it)}</li>
+	{/each}
+</ul>
+```
+
+```ts
+// typed state + derived
+let count: number = $state(0);
+const parity: 'even' | 'odd' = $derived(count % 2 === 0 ? 'even' : 'odd');
+```
+
+## 7. Migration Mapping
+
+| Svelte 4                      | Svelte 5                                 |
+| ----------------------------- | ---------------------------------------- |
+| `$:` labels                   | `$state` / `$derived` / `$effect`        |
+| `<slot>`                      | `#snippet` / `@render`                   |
+| `on:click`                    | `onclick={…}` / `{onclick}`              |
+| `createEventDispatcher`       | callback props + `$host()` for custom el |
+| `$on/$set/$destroy`           | event props / direct state / `unmount`   |
+| `<svelte:component this={C}>` | `<C/>` with `$state`                     |
+
+## 8. **Complex Mixed Example: Collaborative Todo App**
+
+```svelte
+<!-- App.svelte -->
+<script lang="ts">
+	import TodoList from './TodoList.svelte';
+	let todos = $state<{ text: string; done: boolean }[]>([]);
+
+	function add(text: string) {
+		todos.push({ text, done: false });
+	}
+
+	function save(snapshot) {
+		/* send to server */
+	}
+</script>
+
+<TodoList {todos} onAdd={add} onSave={save} />
+```
+
+```svelte
+<!-- TodoList.svelte -->
+<script lang="ts">
+	export interface Todo {
+		text: string;
+		done: boolean;
+	}
+	interface Props {
+		todos: Todo[];
+		onAdd: (t: string) => void;
+		onSave: (snap: Todo[]) => void;
+	}
+	let { todos, onAdd, onSave }: Props = $props();
+
+	let input = $state('');
+	const remaining = $derived(todos.filter((t) => !t.done).length);
+
+	$effect(() => console.log(`Remaining: ${remaining}`));
+
+	function handleAdd() {
+		onAdd(input.trim());
+		input = '';
+	}
+</script>
+
+{#snippet controls()}
+	<input bind:value onkeydown={(e) => e.key === 'Enter' && handleAdd()} placeholder="New task" />
+	<button onclick={handleAdd}>Add</button>
+	<button onclick={() => onSave($state.snapshot(todos))}>Sync</button>
+{/snippet}
+
+{#snippet item(todo, idx)}
+	<li>
+		<input type="checkbox" bind:checked={todo.done} />
+		{todo.text}
+	</li>
+{/snippet}
+
+<div>
+	<p>{remaining} open tasks</p>
+	<ul>
+		{#each todos as t, i}
+			{@render item(t, i)}
+		{/each}
+	</ul>
+	{@render controls()}
+</div>
+```
