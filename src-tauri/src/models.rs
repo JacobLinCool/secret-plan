@@ -44,8 +44,8 @@ pub struct Credential {
     pub username: String,
     /// Encrypted secret data as base64 string
     pub secret_enc: String,
-    /// Tags for organization (comma-separated)
-    pub tags: String,
+    /// Tags for organization
+    pub tags: Vec<String>,
     /// Created timestamp
     pub created_at: DateTime<Utc>,
     /// Last updated timestamp
@@ -66,7 +66,7 @@ impl Credential {
             site,
             username,
             secret_enc,
-            tags: String::new(),
+            tags: Vec::new(),
             created_at: now,
             updated_at: now,
             expires_at: None,

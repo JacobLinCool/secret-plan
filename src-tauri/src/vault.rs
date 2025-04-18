@@ -93,6 +93,7 @@ impl VaultManager {
         site: &str,
         username: &str,
         secret: Secret,
+        tags: Option<Vec<String>>,
     ) -> AppResult<Credential> {
         self.ensure_unlocked()?;
 
@@ -107,6 +108,11 @@ impl VaultManager {
 
         // Create a new credential struct
         let mut credential = Credential::new(site.to_string(), username.to_string(), secret_enc);
+
+        // Set tags if provided
+        if let Some(tag_vec) = tags {
+            credential.tags = tag_vec;
+        }
 
         // Calculate password strength using the injected calculator
         let strength = self
@@ -127,7 +133,7 @@ impl VaultManager {
         site: &str,
         username: &str,
         secret: Secret,
-        tags: String,
+        tags: Vec<String>,
         expires_at: Option<chrono::DateTime<Utc>>,
     ) -> AppResult<()> {
         self.ensure_unlocked()?;

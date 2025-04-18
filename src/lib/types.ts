@@ -11,7 +11,7 @@ export interface Credential {
 	site: string;
 	username: string;
 	secret_enc: string;
-	tags: string; // comma-separated
+	tags: string[];
 	created_at: number;
 	updated_at: number;
 	expires_at: number | null;

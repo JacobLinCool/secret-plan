@@ -91,18 +91,27 @@ mod tests {
             custom_fields,
         };
 
-        // Add credential
+        // Add credential with tags as Vec<String>
+        let tags = Some(vec![
+            "personal".to_string(),
+            "email".to_string(),
+            "test".to_string(),
+        ]);
         let credential = vault
-            .add_credential("example.com", "user@example.com", secret)
+            .add_credential("example.com", "user@example.com", secret, tags)
             .unwrap();
 
         // Check UUID was generated
         assert!(!credential.uuid.is_empty());
 
+        // Check tags were saved
+        assert_eq!(credential.tags, vec!["personal", "email", "test"]);
+
         // Retrieve credential
         let retrieved = vault.get_credential(&credential.uuid).unwrap();
         assert_eq!(retrieved.site, "example.com");
         assert_eq!(retrieved.username, "user@example.com");
+        assert_eq!(retrieved.tags, vec!["personal", "email", "test"]);
 
         // Decrypt secret
         let decrypted_secret = vault.decrypt_secret(&retrieved).unwrap();
@@ -148,7 +157,7 @@ mod tests {
         // Unlock vault
         vault.unlock(TEST_MASTER_PASSWORD).unwrap();
 
-        // Add multiple credentials
+        // Add multiple credentials with tags
         let secret1 = Secret {
             password: "Password1!".to_string(),
             notes: None,
@@ -170,55 +179,30 @@ mod tests {
             custom_fields: HashMap::new(),
         };
 
-        let mut cred1 = vault
-            .add_credential("example.com", "user1@example.com", secret1)
-            .unwrap();
-        let mut cred2 = vault
-            .add_credential("example.org", "user2@example.org", secret2)
-            .unwrap();
-        let mut cred3 = vault
-            .add_credential("secure-site.com", "admin@secure-site.com", secret3)
-            .unwrap();
-
-        // Add tags
-        cred1.tags = "personal,email".to_string();
-        cred2.tags = "work,finance".to_string();
-        cred3.tags = "work,admin".to_string();
-
-        // Update credentials with tags
-        // To update, we need to provide all required fields for update_credential
-        // We'll fetch the decrypted secret for each credential
-        let secret1 = vault.decrypt_secret(&cred1).unwrap();
-        vault
-            .update_credential(
-                &cred1.uuid,
-                &cred1.site,
-                &cred1.username,
+        let _cred1 = vault
+            .add_credential(
+                "example.com",
+                "user1@example.com",
                 secret1,
-                cred1.tags.clone(),
-                cred1.expires_at,
+                Some(vec!["personal".to_string(), "email".to_string()]),
             )
             .unwrap();
-        let secret2 = vault.decrypt_secret(&cred2).unwrap();
-        vault
-            .update_credential(
-                &cred2.uuid,
-                &cred2.site,
-                &cred2.username,
+
+        let _cred2 = vault
+            .add_credential(
+                "example.org",
+                "user2@example.org",
                 secret2,
-                cred2.tags.clone(),
-                cred2.expires_at,
+                Some(vec!["work".to_string(), "finance".to_string()]),
             )
             .unwrap();
-        let secret3 = vault.decrypt_secret(&cred3).unwrap();
-        vault
-            .update_credential(
-                &cred3.uuid,
-                &cred3.site,
-                &cred3.username,
+
+        let _cred3 = vault
+            .add_credential(
+                "secure-site.com",
+                "admin@secure-site.com",
                 secret3,
-                cred3.tags.clone(),
-                cred3.expires_at,
+                Some(vec!["work".to_string(), "admin".to_string()]),
             )
             .unwrap();
 
@@ -348,7 +332,12 @@ mod tests {
             custom_fields: HashMap::new(),
         };
         let _credential = vault
-            .add_credential("test.com", "user@test.com", secret)
+            .add_credential(
+                "test.com",
+                "user@test.com",
+                secret,
+                Some(vec!["test".to_string(), "audit".to_string()]),
+            )
             .unwrap();
 
         // Retrieve audit log

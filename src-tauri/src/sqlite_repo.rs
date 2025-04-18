@@ -4,6 +4,7 @@ use crate::traits::{AuditLogger, CredentialRepository, SettingsRepository};
 use crate::vault::CredentialFilter; // Keep filter definition accessible
 use chrono::{TimeZone, Utc};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use serde_json;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -36,7 +37,7 @@ impl SqliteRepository {
                 site TEXT NOT NULL,
                 username TEXT NOT NULL,
                 secret_enc TEXT NOT NULL, -- Storing encrypted secret as text (JSON container)
-                tags TEXT NOT NULL DEFAULT '',
+                tags TEXT NOT NULL DEFAULT '[]', -- Storing tags as JSON array
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 expires_at INTEGER,
@@ -79,6 +80,10 @@ impl CredentialRepository for SqliteRepository {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
 
+        // Serialize tags to JSON string
+        let tags_json =
+            serde_json::to_string(&credential.tags).map_err(|e| AppError::Serialization(e))?;
+
         tx.execute(
             "INSERT INTO vault_items (
                 uuid, site, username, secret_enc, tags, created_at, updated_at, expires_at, strength, breach_state
@@ -88,7 +93,7 @@ impl CredentialRepository for SqliteRepository {
                 credential.site,
                 credential.username,
                 credential.secret_enc,
-                credential.tags,
+                tags_json,
                 credential.created_at.timestamp(),
                 credential.updated_at.timestamp(),
                 credential.expires_at.map(|dt| dt.timestamp()),
@@ -124,7 +129,7 @@ impl CredentialRepository for SqliteRepository {
                 credential.site,
                 credential.username,
                 credential.secret_enc,
-                credential.tags,
+                serde_json::to_string(&credential.tags)?,
                 updated_at.timestamp(),
                 credential.expires_at.map(|dt| dt.timestamp()),
                 credential.strength, // Assuming strength is recalculated and passed in Credential
@@ -176,13 +181,18 @@ impl CredentialRepository for SqliteRepository {
                 let updated_ts: i64 = row.get(6)?;
                 let expires_ts: Option<i64> = row.get(7)?;
                 let breach_state_int: i32 = row.get(9)?;
+                let tags_json: String = row.get(4)?;
+
+                // Deserialize tags from JSON string
+                let tags = serde_json::from_str(&tags_json)
+                    .map_err(|_e| rusqlite::Error::InvalidColumnType(4, "tags".to_string(), rusqlite::types::Type::Text))?;
 
                 Ok(Credential {
                     uuid: row.get(0)?,
                     site: row.get(1)?,
                     username: row.get(2)?,
                     secret_enc: row.get(3)?,
-                    tags: row.get(4)?,
+                    tags,
                     created_at: Utc.timestamp_opt(created_ts, 0).single().ok_or(rusqlite::Error::InvalidColumnType(5, "created_at".to_string(), rusqlite::types::Type::Integer))?,
                     updated_at: Utc.timestamp_opt(updated_ts, 0).single().ok_or(rusqlite::Error::InvalidColumnType(6, "updated_at".to_string(), rusqlite::types::Type::Integer))?,
                     expires_at: expires_ts.and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
@@ -214,8 +224,10 @@ impl CredentialRepository for SqliteRepository {
                 params_dyn.push(Box::new(format!("%{}%", term)));
             }
             if let Some(tag) = f.tag {
-                conditions.push("tags LIKE ?".to_string());
-                params_dyn.push(Box::new(format!("%{}%", tag)));
+                // Use JSON_ARRAY_LENGTH to ensure it's an array first, then check if it contains tag
+                // For SQLite 3.38.0+ you could use JSON_CONTAINS, but we use LIKE for compatibility
+                conditions.push("(JSON_ARRAY_LENGTH(tags) > 0 AND tags LIKE ?)".to_string());
+                params_dyn.push(Box::new(format!("%\"{}\"%", tag)));
             }
             if let Some(strength) = f.min_strength {
                 conditions.push("strength >= ?".to_string());
@@ -241,12 +253,23 @@ impl CredentialRepository for SqliteRepository {
             let updated_ts: i64 = row.get(6)?;
             let expires_ts: Option<i64> = row.get(7)?;
             let breach_state_int: i32 = row.get(9)?;
+            let tags_json: String = row.get(4)?;
+
+            // Deserialize tags from JSON string
+            let tags = serde_json::from_str(&tags_json).map_err(|_e| {
+                rusqlite::Error::InvalidColumnType(
+                    4,
+                    "tags".to_string(),
+                    rusqlite::types::Type::Text,
+                )
+            })?;
+
             Ok(Credential {
                 uuid: row.get(0)?,
                 site: row.get(1)?,
                 username: row.get(2)?,
                 secret_enc: row.get(3)?,
-                tags: row.get(4)?,
+                tags,
                 created_at: Utc.timestamp_opt(created_ts, 0).single().ok_or(
                     rusqlite::Error::InvalidColumnType(
                         5,

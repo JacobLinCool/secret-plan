@@ -40,12 +40,8 @@
 		const tagSet = new Set<string>();
 
 		credentialStore.items.forEach((credential) => {
-			if (credential.tags) {
-				credential.tags
-					.split(',')
-					.map((tag) => tag.trim())
-					.filter((tag) => tag !== '')
-					.forEach((tag) => tagSet.add(tag));
+			for (const tag of credential.tags) {
+				tagSet.add(tag);
 			}
 		});
 

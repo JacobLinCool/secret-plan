@@ -153,6 +153,7 @@ async fn add_credential(
     notes: Option<String>,
     totp: Option<String>,
     custom_fields: Option<serde_json::Value>,
+    tags: Option<Vec<String>>, // Accept tags as Vec<String>
     state: State<'_, Mutex<AppState>>,
 ) -> Result<Credential, String> {
     let state_guard = state.lock().unwrap();
@@ -178,7 +179,7 @@ async fn add_credential(
 
     // Add credential to vault
     let credential = vault_manager
-        .add_credential(&site, &username, secret)
+        .add_credential(&site, &username, secret, tags) // Pass tags to add_credential
         .map_err(|e| format!("Failed to add credential: {}", e))?;
 
     Ok(credential)

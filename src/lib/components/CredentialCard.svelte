@@ -176,12 +176,7 @@
 
 	// Format tags as array
 	function getTags(): string[] {
-		return credential.tags
-			? credential.tags
-					.split(',')
-					.map((tag: string) => tag.trim())
-					.filter((tag: string) => tag !== '')
-			: [];
+		return credential.tags || [];
 	}
 
 	const tags = $derived(getTags());

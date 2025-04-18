@@ -167,7 +167,7 @@ export async function addCredential(
 	notes?: string,
 	totp?: string,
 	customFields?: Record<string, string>,
-	tags?: string
+	tags?: string[]
 ) {
 	try {
 		ui.isLoading = true;
@@ -179,13 +179,9 @@ export async function addCredential(
 			password,
 			notes,
 			totp,
-			customFields: customFields ? JSON.stringify(customFields) : undefined
+			customFields: customFields ? JSON.stringify(customFields) : undefined,
+			tags
 		});
-
-		// If tags were provided, update the credential with tags
-		if (tags && tags.trim() !== '') {
-			// TODO: Update tags once implemented in backend
-		}
 
 		// Refresh the credentials list
 		await loadCredentials();
