@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+    @apply font-['Inter,Avenir,Helvetica,Arial,sans-serif'] text-base leading-6 font-normal text-stone-900 bg-stone-100 antialiased;
+}
+
+a {
+    @apply font-medium text-indigo-600 no-underline hover:text-indigo-500 dark:hover:text-cyan-400;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        @apply text-stone-100 bg-stone-900;
+    }
+}
