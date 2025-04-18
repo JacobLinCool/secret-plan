@@ -67,13 +67,13 @@ graph LR
     end
 ```
 
-*Legend: `:::planned` = planned/not yet implemented*
+_Legend: `:::planned` = planned/not yet implemented_
 
-*Reasons*:
+_Reasons_:
 
-* **Tauri 2** gives a small binary and secure Rust side‑car for cryptography.  
-* **Svelte 5 runes** provide ultra‑light reactivity; Tailwind 4 ensures consistent styling.  
-* Separation keeps encryption keys in Rust memory only; UI layer never touches plaintext.
+- **Tauri 2** gives a small binary and secure Rust side‑car for cryptography.
+- **Svelte 5 runes** provide ultra‑light reactivity; Tailwind 4 ensures consistent styling.
+- Separation keeps encryption keys in Rust memory only; UI layer never touches plaintext.
 
 ---
 
@@ -85,8 +85,8 @@ graph LR
 | `vault_items` | `uuid TEXT PK`, `site TEXT`, `username TEXT`, `secret_enc TEXT`, `tags TEXT`, `created_at INTEGER`, `updated_at INTEGER`, `expires_at INTEGER`, `strength INTEGER`, `breach_state INTEGER` | `secret_enc` is base64-encoded JSON container (nonce+cipher) |
 | `audit_log`   | `id INTEGER PRIMARY KEY AUTOINCREMENT`, `timestamp INTEGER`, `action TEXT`, `item_uuid TEXT`                                                                                               | Immutable log for security review                            |
 
-* All tables live in **SQLite** wrapped by [sqlcipher]/`rust‑sqlite` with page‑level AES‑GCM; the entire file is again envelope‑encrypted before sync (**planned**).  
-* Row‑level random IVs prevent pattern leakage.  
+- All tables live in **SQLite** wrapped by [sqlcipher]/`rust‑sqlite` with page‑level AES‑GCM; the entire file is again envelope‑encrypted before sync (**planned**).
+- Row‑level random IVs prevent pattern leakage.
 
 ---
 

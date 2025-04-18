@@ -1,16 +1,16 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
-    font-family: "Inter", Avenir, Helvetica, Arial, sans-serif;
-    @apply text-base leading-6 font-normal text-stone-900 bg-stone-100 antialiased;
+	font-family: 'Inter', Avenir, Helvetica, Arial, sans-serif;
+	@apply bg-stone-100 text-base leading-6 font-normal text-stone-900 antialiased;
 }
 
 a {
-    @apply font-medium text-indigo-600 no-underline hover:text-indigo-500 dark:hover:text-cyan-400;
+	@apply font-medium text-indigo-600 no-underline hover:text-indigo-500 dark:hover:text-cyan-400;
 }
 
 @media (prefers-color-scheme: dark) {
-    :root {
-        @apply text-stone-100 bg-stone-900;
-    }
+	:root {
+		@apply bg-stone-900 text-stone-100;
+	}
 }
