@@ -3,8 +3,11 @@ pub mod crypto;
 pub mod error;
 pub mod hibp;
 pub mod models;
+pub mod sqlite_repo;
+pub mod strength;
 #[cfg(test)]
 pub mod tests;
+pub mod traits;
 pub mod vault;
 
 use std::path::PathBuf;
@@ -58,27 +61,23 @@ async fn initialize_vault(
     state: State<'_, Mutex<AppState>>,
 ) -> Result<bool, String> {
     let vault_path = get_vault_path(&app_handle);
-
-    // Check if the vault already exists
     let vault_exists = vault_path.exists();
-
-    // Initialize the vault manager if not already done
     let mut state_guard = state.lock().unwrap();
     if state_guard.vault_manager.is_none() {
-        // Create default settings
         let settings = AppSettings::default();
-
-        // Create vault manager
-        let vault_manager = VaultManager::new(&vault_path, settings)
-            .map_err(|e| format!("Failed to initialize vault: {}", e))?;
-
-        // Store vault manager in app state
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(
+            SqliteRepository::new(&vault_path).map_err(|e| format!("Failed to open DB: {}", e))?,
+        );
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let vault_manager =
+            VaultManager::new(repo.clone(), repo.clone(), repo.clone(), strength, settings)
+                .map_err(|e| format!("Failed to initialize vault: {}", e))?;
         state_guard.vault_manager = Some(vault_manager);
-
-        // Store app handle in state
         state_guard.set_app_handle(app_handle);
     }
-
     Ok(vault_exists)
 }
 

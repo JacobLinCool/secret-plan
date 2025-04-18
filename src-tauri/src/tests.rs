@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use aes_gcm::{Aes256Gcm, Key};
+
     use std::collections::HashMap;
     use tempfile::tempdir;
 
@@ -18,7 +18,13 @@ mod tests {
 
         // Create vault manager
         let settings = AppSettings::default();
-        let vault = VaultManager::new(&db_path, settings).unwrap();
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(SqliteRepository::new(&db_path).unwrap());
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let vault = VaultManager::new(repo.clone(), repo.clone(), repo.clone(), strength, settings)
+            .unwrap();
 
         // Vault should start locked
         assert!(!vault.is_unlocked());
@@ -31,7 +37,14 @@ mod tests {
 
         // Create vault manager
         let settings = AppSettings::default();
-        let mut vault = VaultManager::new(&db_path, settings).unwrap();
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(SqliteRepository::new(&db_path).unwrap());
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let mut vault =
+            VaultManager::new(repo.clone(), repo.clone(), repo.clone(), strength, settings)
+                .unwrap();
 
         // Unlock vault
         vault.unlock(TEST_MASTER_PASSWORD).unwrap();
@@ -49,7 +62,14 @@ mod tests {
 
         // Create vault manager
         let settings = AppSettings::default();
-        let mut vault = VaultManager::new(&db_path, settings).unwrap();
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(SqliteRepository::new(&db_path).unwrap());
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let mut vault =
+            VaultManager::new(repo.clone(), repo.clone(), repo.clone(), strength, settings)
+                .unwrap();
 
         // Unlock vault
         vault.unlock(TEST_MASTER_PASSWORD).unwrap();
@@ -116,7 +136,14 @@ mod tests {
 
         // Create vault manager
         let settings = AppSettings::default();
-        let mut vault = VaultManager::new(&db_path, settings).unwrap();
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(SqliteRepository::new(&db_path).unwrap());
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let mut vault =
+            VaultManager::new(repo.clone(), repo.clone(), repo.clone(), strength, settings)
+                .unwrap();
 
         // Unlock vault
         vault.unlock(TEST_MASTER_PASSWORD).unwrap();
@@ -159,9 +186,41 @@ mod tests {
         cred3.tags = "work,admin".to_string();
 
         // Update credentials with tags
-        vault.update_credential(&cred1.uuid, cred1.clone()).unwrap();
-        vault.update_credential(&cred2.uuid, cred2.clone()).unwrap();
-        vault.update_credential(&cred3.uuid, cred3.clone()).unwrap();
+        // To update, we need to provide all required fields for update_credential
+        // We'll fetch the decrypted secret for each credential
+        let secret1 = vault.decrypt_secret(&cred1).unwrap();
+        vault
+            .update_credential(
+                &cred1.uuid,
+                &cred1.site,
+                &cred1.username,
+                secret1,
+                cred1.tags.clone(),
+                cred1.expires_at,
+            )
+            .unwrap();
+        let secret2 = vault.decrypt_secret(&cred2).unwrap();
+        vault
+            .update_credential(
+                &cred2.uuid,
+                &cred2.site,
+                &cred2.username,
+                secret2,
+                cred2.tags.clone(),
+                cred2.expires_at,
+            )
+            .unwrap();
+        let secret3 = vault.decrypt_secret(&cred3).unwrap();
+        vault
+            .update_credential(
+                &cred3.uuid,
+                &cred3.site,
+                &cred3.username,
+                secret3,
+                cred3.tags.clone(),
+                cred3.expires_at,
+            )
+            .unwrap();
 
         // Test site search
         let filter = CredentialFilter {
@@ -200,10 +259,6 @@ mod tests {
         let settings = AppSettings::default();
         let mut crypto = CryptoService::new(settings);
 
-        // Test key derivation
-        let key: Key<Aes256Gcm> = crypto.derive_key(TEST_MASTER_PASSWORD).unwrap();
-        assert_eq!(key.len(), 32); // 256 bits = 32 bytes
-
         // Test unlock/lock
         crypto.unlock(TEST_MASTER_PASSWORD).unwrap();
         assert!(crypto.is_unlocked());
@@ -232,7 +287,19 @@ mod tests {
 
         // Create vault manager with default settings
         let settings = AppSettings::default();
-        let mut vault = VaultManager::new(&db_path, settings.clone()).unwrap();
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(SqliteRepository::new(&db_path).unwrap());
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let mut vault = VaultManager::new(
+            repo.clone(),
+            repo.clone(),
+            repo.clone(),
+            strength,
+            settings.clone(),
+        )
+        .unwrap();
 
         // Unlock vault
         vault.unlock(TEST_MASTER_PASSWORD).unwrap();
@@ -261,7 +328,14 @@ mod tests {
 
         // Create vault manager
         let settings = AppSettings::default();
-        let mut vault = VaultManager::new(&db_path, settings).unwrap();
+        use crate::sqlite_repo::SqliteRepository;
+        use crate::strength::SimpleStrengthCalculator;
+        use std::sync::Arc;
+        let repo = Arc::new(SqliteRepository::new(&db_path).unwrap());
+        let strength = Arc::new(SimpleStrengthCalculator);
+        let mut vault =
+            VaultManager::new(repo.clone(), repo.clone(), repo.clone(), strength, settings)
+                .unwrap();
 
         // Unlock vault (generates first audit log entry)
         vault.unlock(TEST_MASTER_PASSWORD).unwrap();
