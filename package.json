@@ -1,36 +1,43 @@
 {
-  "name": "secret-plan",
-  "version": "0.1.0",
-  "description": "",
-  "type": "module",
-  "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
-  },
-  "license": "MIT",
-  "dependencies": {
-    "@tauri-apps/api": "^2.5.0",
-    "@tauri-apps/plugin-opener": "^2.2.6"
-  },
-  "devDependencies": {
-    "@sveltejs/adapter-static": "^3.0.8",
-    "@sveltejs/kit": "^2.20.7",
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
-    "@tailwindcss/vite": "^4.1.4",
-    "@tauri-apps/cli": "^2.5.0",
-    "svelte": "^5.27.2",
-    "svelte-check": "^4.1.6",
-    "tailwindcss": "^4.1.4",
-    "typescript": "~5.6.3",
-    "vite": "^6.3.1"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
-  }
+	"name": "secret-plan",
+	"version": "0.1.0",
+	"description": "",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"tauri": "tauri",
+		"format": "pnpm format:frontend && pnpm format:backend",
+		"format:frontend": "prettier --ignore-path .gitignore --write .",
+		"format:backend": "cd src-tauri && cargo fmt"
+	},
+	"license": "MIT",
+	"dependencies": {
+		"@tauri-apps/api": "^2.5.0",
+		"@tauri-apps/plugin-opener": "^2.2.6"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "^3.0.8",
+		"@sveltejs/kit": "^2.20.7",
+		"@sveltejs/vite-plugin-svelte": "^5.0.3",
+		"@tailwindcss/vite": "^4.1.4",
+		"@tauri-apps/cli": "^2.5.0",
+		"prettier": "^3.5.3",
+		"prettier-plugin-organize-imports": "^4.1.0",
+		"prettier-plugin-svelte": "^3.3.3",
+		"prettier-plugin-tailwindcss": "^0.6.11",
+		"svelte": "^5.27.2",
+		"svelte-check": "^4.1.6",
+		"tailwindcss": "^4.1.4",
+		"typescript": "~5.6.3",
+		"vite": "^6.3.1"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	}
 }
