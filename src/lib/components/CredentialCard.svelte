@@ -167,9 +167,26 @@
 		const strength = credential.strength || 0;
 		let color = 'bg-red-500';
 
-		if (strength >= 80) color = 'bg-green-500';
-		else if (strength >= 60) color = 'bg-yellow-500';
-		else if (strength >= 40) color = 'bg-orange-500';
+		switch (strength) {
+			case 0:
+				color = 'bg-red-500';      // Very weak
+				break;
+			case 1:
+				color = 'bg-red-400';      // Weak  
+				break;
+			case 2:
+				color = 'bg-orange-500';   // Fair
+				break;
+			case 3:
+				color = 'bg-yellow-500';   // Good
+				break;
+			case 4:
+				color = 'bg-green-500';    // Strong
+				break;
+			default:
+				color = 'bg-gray-300';
+				break;
+		}
 
 		return { strength, color };
 	}
