@@ -121,3 +121,53 @@ pub struct AuditLogEntry {
     /// Item UUID if related to a credential
     pub item_uuid: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordStrengthResult {
+    /// Score from 0-4 (zxcvbn scale)
+    pub score: u8,
+    /// Percentage representation (0-100)
+    pub percentage: u8,
+    /// Detailed feedback about the password
+    pub feedback: PasswordFeedback,
+    /// Entropy estimate (log10 of guesses)
+    pub entropy: f64,
+    /// Number of patterns detected
+    pub pattern_matches: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordFeedback {
+    /// Estimated crack time
+    pub crack_time: String,
+    /// Suggestions for improvement
+    pub suggestions: Vec<String>,
+    /// Warning about weakness
+    pub warning: Option<String>,
+}
+
+impl PasswordStrengthResult {
+    /// Get color class for UI based on strength score
+    pub fn get_color_class(&self) -> &'static str {
+        match self.score {
+            0 => "bg-red-500",      // Very weak
+            1 => "bg-red-400",      // Weak  
+            2 => "bg-orange-500",   // Fair
+            3 => "bg-yellow-500",   // Good
+            4 => "bg-green-500",    // Strong
+            _ => "bg-gray-300",
+        }
+    }
+    
+    /// Get descriptive text for strength level
+    pub fn get_strength_text(&self) -> &'static str {
+        match self.score {
+            0 => "Very Weak",
+            1 => "Weak",
+            2 => "Fair", 
+            3 => "Good",
+            4 => "Strong",
+            _ => "Unknown",
+        }
+    }
+}

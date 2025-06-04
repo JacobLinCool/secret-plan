@@ -16,9 +16,32 @@
 	let excludeSimilar = $state(true);
 	let generatedPassword = $state('');
 
+	// Password strength analysis
+	interface PasswordStrengthResult {
+		score: number;
+		percentage: number;
+		feedback: {
+			crack_time: string;
+			suggestions: string[];
+			warning?: string;
+		};
+		entropy: number;
+		pattern_matches: number;
+	}
+
+	let passwordStrength = $state<PasswordStrengthResult | null>(null);
+	let isAnalyzing = $state(false);
+
 	// Generate password on mount and when options change
 	$effect(() => {
 		generatePassword();
+	});
+
+	// Analyze password strength whenever password changes
+	$effect(() => {
+		if (generatedPassword) {
+			analyzePasswordStrength();
+		}
 	});
 
 	// Generate a new password
@@ -48,37 +71,69 @@
 		}
 	}
 
-	// Strength calculation (simplified version, should use the backend version later)
-	function calculatePasswordStrength() {
-		if (!generatedPassword) return { score: 0, color: 'bg-gray-200' };
+	// Analyze password strength using backend
+	async function analyzePasswordStrength() {
+		if (!generatedPassword) return;
 
-		// Basic entropy calculation
-		let score = 0;
-		let entropy = 0;
+		try {
+			isAnalyzing = true;
+			
+			const result = (await invoke('calculate_password_strength', {
+				password: generatedPassword
+			})) as PasswordStrengthResult;
 
-		if (useUppercase) entropy += 26;
-		if (useLowercase) entropy += 26;
-		if (useNumbers) entropy += 10;
-		if (useSymbols) entropy += 32;
-
-		// Entropy bits = log2(charsetSize) * length
-		const entropyBits = Math.log2(entropy) * length;
-
-		if (entropyBits > 128) score = 100;
-		else if (entropyBits > 80) score = 80;
-		else if (entropyBits > 60) score = 60;
-		else if (entropyBits > 40) score = 40;
-		else score = 20;
-
-		let color = 'bg-red-500';
-		if (score >= 80) color = 'bg-green-500';
-		else if (score >= 60) color = 'bg-yellow-500';
-		else if (score >= 40) color = 'bg-orange-500';
-
-		return { score, color };
+			passwordStrength = result;
+		} catch (error) {
+			console.error('Failed to analyze password strength:', error);
+			// Fallback to basic calculation if backend fails
+			passwordStrength = {
+				score: 2,
+				percentage: 50,
+				feedback: {
+					crack_time: 'Unknown',
+					suggestions: ['Backend analysis unavailable'],
+					warning: 'Using fallback strength calculation'
+				},
+				entropy: 0,
+				pattern_matches: 0
+			};
+		} finally {
+			isAnalyzing = false;
+		}
 	}
 
-	const passwordStrength = $derived(calculatePasswordStrength());
+	// Get color class based on strength score
+	function getStrengthColor(): string {
+		if (!passwordStrength) return 'bg-gray-200';
+		
+		switch (passwordStrength.score) {
+			case 0: return 'bg-red-500';      // Very weak
+			case 1: return 'bg-red-400';      // Weak  
+			case 2: return 'bg-orange-500';   // Fair
+			case 3: return 'bg-yellow-500';   // Good
+			case 4: return 'bg-green-500';    // Strong
+			default: return 'bg-gray-300';
+		}
+	}
+
+	function getStrengthScore(): number {
+		if (!passwordStrength) return 0;
+		else				   return passwordStrength.score;
+	}
+
+	// Get strength text
+	function getStrengthText(): string {
+		if (!passwordStrength) return 'Analyzing...';
+		
+		switch (passwordStrength.score) {
+			case 0: return 'Very Weak';
+			case 1: return 'Weak';
+			case 2: return 'Fair';
+			case 3: return 'Good';
+			case 4: return 'Strong';
+			default: return 'Unknown';
+		}
+	}
 
 	// Copy password to clipboard
 	async function copyToClipboard() {
@@ -213,8 +268,8 @@
 		</div>
 		<div class="h-1.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
 			<div
-				class="h-1.5 rounded-full {passwordStrength.color}"
-				style="width: {passwordStrength.score}%"
+				class="h-1.5 rounded-full {getStrengthColor()}"
+				style="width: {getStrengthScore()}%"
 			></div>
 		</div>
 	</div>
