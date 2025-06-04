@@ -16,7 +16,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
 use hibp::HibpService;
-use models::{AppSettings, BreachState, Credential, Secret};
+use models::{AppSettings, BreachState, Credential, Secret, PasswordStrengthResult, PasswordFeedback};
 use vault::{CredentialFilter, VaultManager};
 
 // App state that will be shared across commands
@@ -422,6 +422,36 @@ async fn generate_password(
 }
 
 #[tauri::command]
+async fn calculate_password_strength(password: String) -> Result<PasswordStrengthResult, String> {
+    use crate::strength::SimpleStrengthCalculator;
+    use crate::traits::PasswordStrengthCalculator;
+    
+    let calculator = SimpleStrengthCalculator;
+    let strength_score = calculator.calculate_strength(&password);
+    
+    // Create a more detailed result using zxcvbn
+    let estimate = zxcvbn::zxcvbn(&password, &[]);
+    
+    let result = PasswordStrengthResult {
+        score: strength_score,
+        percentage: ((strength_score as f32 / 4.0) * 100.0) as u8,
+        feedback: PasswordFeedback {
+            crack_time: estimate.crack_times().online_no_throttling_10_per_second().to_string(),
+            suggestions: estimate.feedback().as_ref().map_or(Vec::new(), |f| {
+                f.suggestions().iter().map(|s| s.to_string()).collect()
+            }),
+            warning: estimate.feedback().as_ref().and_then(|f| {
+                f.warning().map(|w| w.to_string())
+            }),
+        },
+        entropy: estimate.guesses_log10(),
+        pattern_matches: estimate.sequence().len() as u8,
+    };
+    
+    Ok(result)
+}
+
+#[tauri::command]
 async fn greet(name: &str) -> Result<String, String> {
     Ok(format!("Hello, {}! You've been greeted from Rust!", name))
 }
@@ -451,6 +481,7 @@ pub fn run() {
             get_app_settings,
             save_app_settings,
             generate_password,
+            calculate_password_strength,
         ])
         .setup(move |app| {
             #[cfg(debug_assertions)]
